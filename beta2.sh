@@ -65,7 +65,7 @@ generate_tunnel_ip() {
         echo -e "${YELLOW}Example: 192.168.$template_number.100 (must be in the 192.168.$template_number.x range).${RESET}"
         read -p "> " user_ip
         ip_address=${user_ip:-$ip_address}
-        if [[ ! "$ip_address" =~ ^$template_prefix\.[0-255]/32$ ]]; then
+        if [[ ! "$ip_address" =~ ^$template_prefix\.[0-9]+/32$ ]]; then
             echo -e "${RED}Invalid IPv4. It must be in the $template_prefix.x/32 range.${RESET}"
             read -p "Press Enter to retry..."
             generate_tunnel_ip "$ip_version"
@@ -111,7 +111,7 @@ get_local_ip() {
         [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo "$ip" || { echo -e "${RED}No valid IPv4 found. Ensure your network is configured correctly.${RESET}"; exit 1; }
     else
         local ip=$(hostname -I | awk '{for(i=1;i<=NF;i++) if($i~/^[0-9a-f:]+$/ && $i!~/^fe80/) {print $i; exit}}')
-        [[ "$ip" =~ ^[0-9a-f:]+$/ && "$ip" != "fe80"* ]] && echo "$ip" || { echo -e "${RED}No valid global IPv6 found. Ensure your network is configured correctly.${RESET}"; exit 1; }
+        [[ "$ip" =~ ^[0-9a-f:]+$ && "$ip" != fe80* ]] && echo "$ip" || { echo -e "${RED}No valid global IPv6 found. Ensure your network is configured correctly.${RESET}"; exit 1; }
     fi
 }
 
@@ -147,13 +147,21 @@ create_vxlan_tunnel() {
     read -p "> " ip_version
     ip_version=${ip_version:-1}
     [[ ! "$ip_version" =~ ^[1-2]$ ]] && { echo -e "${RED}Invalid choice. Choose 1 (IPv4) or 2 (IPv6).${RESET}"; return 1; }
-    echo -e "${GREEN}Using IP version: IPv${ip_version}${RESET}"
+    echo -e "${GREEN}Using IP version: IPv$ip_version${RESET}"
 
     # Step 4: Get local IP
     local local_ip=$(get_local_ip "$ip_version")
     echo -e "${BLUE}Step 4: Set local public IP or domain${RESET}"
-    echo -e "${GREEN}Enter the public IP or domain of this server or press Enter to use $local_ip.${RESET}"
-    echo -e "${YELLOW}This is the IP/domain that the remote server will use to connect to this tunnel. Example: ${ip_version == 1 ? '203.0.113.1' : '2001:db8::1'} or server1.example.com${RESET}"
+    echo -e -n "${GREEN}Enter the public IP or domain of this server or press Enter to use $local_ip.${RESET}\n"
+
+    # Prepare example IP for message
+    if [[ "$ip_version" == "1" ]]; then
+        example_ip="203.0.113.1"
+    else
+        example_ip="2001:db8::1"
+    fi
+
+    echo -e "${YELLOW}This is the IP/domain that the remote server will use to connect to this tunnel. Example: $example_ip or server1.example.com${RESET}"
     read -p "> " user_input
     user_input=${user_input:-$local_ip}
     if [[ "$ip_version" == "1" ]]; then
@@ -164,7 +172,7 @@ create_vxlan_tunnel() {
             [[ -z "$local_ip" ]] && { echo -e "${RED}Invalid domain or IPv4. Ensure the domain resolves to a valid IPv4.${RESET}"; return 1; }
         fi
     else
-        if [[ "$user_input" =~ ^[0-9a-f:]+$/ ]]; then
+        if [[ "$user_input" =~ ^[0-9a-f:]+$ ]]; then
             local_ip="$user_input"
         else
             local_ip=$(dig +short -t AAAA "$user_input" | grep -E '^[0-9a-f:]+$' | head -1)
@@ -179,8 +187,16 @@ create_vxlan_tunnel() {
 
     # Step 6: Get remote IP
     echo -e "${BLUE}Step 6: Set remote public IP or domain${RESET}"
-    echo -e "${GREEN}Enter the public IP or domain of the remote server.${RESET}"
-    echo -e "${YELLOW}This is the IP/domain of the other server this tunnel will connect to. Example: ${ip_version == 1 ? '198.51.100.1' : '2001:db8::2'}${RESET}"
+    echo -e -n "${GREEN}Enter the public IP or domain of the remote server.${RESET}\n"
+
+    # Prepare example IP for remote server message
+    if [[ "$ip_version" == "1" ]]; then
+        remote_example_ip="198.51.100.1"
+    else
+        remote_example_ip="2001:db8::2"
+    fi
+
+    echo -e "${YELLOW}This is the IP/domain of the other server this tunnel will connect to. Example: $remote_example_ip${RESET}"
     read -p "> " remote_input
     if [[ "$ip_version" == "1" ]]; then
         if [[ "$remote_input" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -190,7 +206,7 @@ create_vxlan_tunnel() {
             [[ -z "$remote_ip" ]] && { echo -e "${RED}Invalid domain or IPv4. Ensure the domain resolves to a valid IPv4.${RESET}"; return 1; }
         fi
     else
-        if [[ "$remote_input" =~ ^[0-9a-f:]+$/ ]]; then
+        if [[ "$remote_input" =~ ^[0-9a-f:]+$ ]]; then
             remote_ip="$remote_input"
         else
             remote_ip=$(dig +short -t AAAA "$remote_input" | grep -E '^[0-9a-f:]+$' | head -1)
@@ -201,12 +217,18 @@ create_vxlan_tunnel() {
 
     # Step 7: Get route network
     echo -e "${BLUE}Step 7: Set remote local IP for routing${RESET}"
-    echo -e "${GREEN}Enter the tunnel IP of the remote server (e.g., ${ip_version == 1 ? '192.168.1.100' : 'fd12:3456:789a::1'}).${RESET}"
+    echo -e -n "${GREEN}Enter the tunnel IP of the remote server (e.g., "
+    if [[ "$ip_version" == "1" ]]; then
+        echo -n "192.168.1.100"
+    else
+        echo -n "fd12:3456:789a::1"
+    fi
+    echo -e ").${RESET}"
     echo -e "${YELLOW}This is the IP used inside the VXLAN tunnel on the remote server, as set in its configuration.${RESET}"
     read -p "> " route_network
     [[ -z "$route_network" ]] && { echo -e "${RED}Remote local IP is required.${RESET}"; return 1; }
-    if [[ "$ip_version" == "1" && ! "$route_network" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ "$ip_version" == "2" && ! "$route_network" =~ ^[0-9a-f:]+$/ ]]; then
-        echo -e "${RED}Invalid IP format for IPv${ip_version}.${RESET}"
+    if [[ "$ip_version" == "1" && ! "$route_network" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ "$ip_version" == "2" && ! "$route_network" =~ ^[0-9a-f:]+$ ]]; then
+        echo -e "${RED}Invalid IP format for IPv$ip_version.${RESET}"
         return 1
     fi
     echo -e "${GREEN}Using route: $route_network${RESET}"
@@ -251,163 +273,60 @@ EOF
 
 # Function to manage tunnels
 manage_tunnels() {
-    tunnels=($(ls /usr/lib/systemd/system/vxlan-*.service 2>/dev/null | xargs -n 1 basename | sed 's/\.service$//'))
-    [[ ${#tunnels[@]} -eq 0 ]] && { echo -e "${RED}No VXLAN tunnels found.${RESET}"; read -p "Press Enter..."; return 1; }
+    local tunnels=($(systemctl list-unit-files | grep vxlan | awk '{print $1}'))
+    if [[ ${#tunnels[@]} -eq 0 ]]; then
+        echo -e "${YELLOW}No VXLAN tunnels found.${RESET}"
+        read -p "Press Enter to continue..."
+        return
+    fi
 
-    echo -e "${BLUE}Step 1: Select a tunnel to manage${RESET}"
-    echo -e "${GREEN}Available VXLAN tunnels:${RESET}"
+    echo -e "${BLUE}Available VXLAN tunnels:${RESET}"
     for i in "${!tunnels[@]}"; do echo "$((i+1)). ${tunnels[i]}"; done
-    read -p "Enter tunnel number: " choice
-    [[ ! "$choice" =~ ^[0-9]+$ || $choice -lt 1 || $choice -gt ${#tunnels[@]} ]] && { echo -e "${RED}Invalid choice. Choose a number between 1 and ${#tunnels[@]}.${RESET}"; return 1; }
+    echo -e "${GREEN}Choose a tunnel to manage (or 0 to cancel):${RESET}"
+    read -p "> " choice
+    [[ "$choice" == "0" ]] && return
+    if [[ ! "$choice" =~ ^[0-9]+$ || $choice -lt 1 || $choice -gt ${#tunnels[@]} ]]; then
+        echo -e "${RED}Invalid choice.${RESET}"
+        return
+    fi
+    local selected="${tunnels[$((choice-1))]}"
+    echo -e "${BLUE}Managing tunnel $selected${RESET}"
 
-    local selected_tunnel="${tunnels[$((choice-1))]}"
-    local service_file="/usr/lib/systemd/system/$selected_tunnel.service"
-
-    # Extract IPs
-    local route_ip=$(grep -oP '(?<=route\sadd\s)[0-9a-f.:/]+' "$service_file")
-    local remote_ip=$(grep -oP '(?<=remote\s)[0-9a-f.:]+' "$service_file")
-    local local_ip=$(grep -oP '(?<=local\s)[0-9a-f.:]+' "$service_file")
-    local tunnel_ip=$(grep -oP '(?<=ip addr add\s)[0-9a-f.:/]+' "$service_file")
-
-    echo -e "${BLUE}Tunnel: $selected_tunnel${RESET}"
-    echo -e "${GREEN}Local Public IP: $local_ip\nTunnel IP: $tunnel_ip\nRemote Public IP: $remote_ip\nRemote Local IP: $route_ip${RESET}"
-
-    echo -e "${BLUE}Step 2: Choose an action${RESET}"
-    echo -e "${GREEN}1. Start tunnel\n2. Stop tunnel\n3. Restart tunnel\n4. Enable at boot\n5. Disable at boot\n6. Check status\n7. Remove tunnel\n8. Edit configuration\n9. Change remote IP\n10. Ping remote IPs\n0. Back${RESET}"
-    read -p "Choose action: " action
-
-    case $action in
-        1) systemctl start "$selected_tunnel"; echo -e "${GREEN}Tunnel started.${RESET}" ;;
-        2) systemctl stop "$selected_tunnel"; systemctl daemon-reload; echo -e "${GREEN}Tunnel stopped.${RESET}" ;;
-        3) systemctl restart "$selected_tunnel"; systemctl daemon-reload; echo -e "${GREEN}Tunnel restarted.${RESET}" ;;
-        4) systemctl enable "$selected_tunnel"; systemctl daemon-reload; echo -e "${GREEN}Enabled at boot.${RESET}" ;;
-        5) systemctl disable "$selected_tunnel"; systemctl daemon-reload; echo -e "${GREEN}Disabled at boot.${RESET}" ;;
-        6) systemctl status "$selected_tunnel" ;;
-        7) systemctl stop "$selected_tunnel"; systemctl disable "$selected_tunnel"; rm "$service_file"; systemctl daemon-reload; echo -e "${GREEN}Tunnel removed.${RESET}" ;;
-        8) nano "$service_file"; systemctl daemon-reload; systemctl restart "$selected_tunnel" ;;
-        9)
-            echo -e "${BLUE}Step 3: Change remote public IP${RESET}"
-            echo -e "${GREEN}Enter new remote public IP (current: $remote_ip):${RESET}"
-            echo -e "${YELLOW}Example: ${remote_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ? '198.51.100.1' : '2001:db8::1'}${RESET}"
-            read -p "> " new_ip
-            [[ -z "$new_ip" ]] && { echo -e "${RED}No IP entered.${RESET}"; return 1; }
-            if [[ ! "$new_ip" =~ ^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[0-9a-f:]+)$ ]]; then
-                echo -e "${RED}Invalid IP format.${RESET}"; return 1
-            fi
-            sed -i "s|remote [0-9a-f.:]\+|remote $new_ip|" "$service_file"
+    echo -e "1. Start\n2. Stop\n3. Restart\n4. Enable\n5. Disable\n6. Delete\n0. Cancel"
+    read -p "> " action
+    case "$action" in
+        1) systemctl start "$selected" && echo -e "${GREEN}Started $selected${RESET}" || echo -e "${RED}Failed to start $selected${RESET}" ;;
+        2) systemctl stop "$selected" && echo -e "${GREEN}Stopped $selected${RESET}" || echo -e "${RED}Failed to stop $selected${RESET}" ;;
+        3) systemctl restart "$selected" && echo -e "${GREEN}Restarted $selected${RESET}" || echo -e "${RED}Failed to restart $selected${RESET}" ;;
+        4) systemctl enable "$selected" && echo -e "${GREEN}Enabled $selected${RESET}" || echo -e "${RED}Failed to enable $selected${RESET}" ;;
+        5) systemctl disable "$selected" && echo -e "${GREEN}Disabled $selected${RESET}" || echo -e "${RED}Failed to disable $selected${RESET}" ;;
+        6) 
+            systemctl stop "$selected"
+            systemctl disable "$selected"
+            rm -f "/usr/lib/systemd/system/$selected"
             systemctl daemon-reload
-            systemctl restart "$selected_tunnel"
-            echo -e "${GREEN}Remote IP updated to $new_ip.${RESET}"
-            ;;
-        10)
-            echo -e "${BLUE}Step 3: Pinging remote IPs${RESET}"
-            echo -e "${GREEN}Pinging remote local IP ($route_ip)...${RESET}"
-            ping_cmd="ping"
-            [[ "$route_ip" =~ ^[0-9a-f:]+/ ]] && ping_cmd="ping6"
-            $ping_cmd -c 4 -W 3 "$(echo "$route_ip" | cut -d'/' -f1)" && echo -e "${GREEN}Ping successful.${RESET}" || echo -e "${RED}Ping failed. Check the tunnel or remote server configuration.${RESET}"
-            echo -e "${GREEN}Pinging remote public IP ($remote_ip)...${RESET}"
-            [[ "$remote_ip" =~ ^[0-9a-f:]+$ ]] && ping_cmd="ping6"
-            $ping_cmd -c 4 -W 3 "$remote_ip" && echo -e "${GREEN}Ping successful.${RESET}" || echo -e "${RED}Ping failed. Check network connectivity.${RESET}"
+            echo -e "${GREEN}Deleted $selected${RESET}"
             ;;
         0) return ;;
-        *) echo -e "${RED}Invalid option. Choose a number between 0 and 10.${RESET}" ;;
+        *) echo -e "${RED}Invalid action.${RESET}" ;;
     esac
     read -p "Press Enter to continue..."
-}
-
-# Function to manage all tunnels
-manage_all_tunnels() {
-    tunnels=($(ls /usr/lib/systemd/system/vxlan-*.service 2>/dev/null | xargs -n 1 basename | sed 's/\.service$//'))
-    [[ ${#tunnels[@]} -eq 0 ]] && { echo -e "${RED}No VXLAN tunnels found.${RESET}"; read -p "Press Enter..."; return 1; }
-
-    case $1 in
-        start)
-            for t in "${tunnels[@]}"; do systemctl enable --now "$t"; done
-            echo -e "${GREEN}All tunnels started.${RESET}"
-            ;;
-        stop)
-            for t in "${tunnels[@]}"; do systemctl stop "$t"; done
-            systemctl daemon-reload
-            echo -e "${GREEN}All tunnels stopped.${RESET}"
-            ;;
-        restart)
-            for t in "${tunnels[@]}"; do systemctl restart "$t"; done
-            systemctl daemon-reload
-            echo -e "${GREEN}All tunnels restarted.${RESET}"
-            ;;
-    esac
-    read -p "Press Enter to continue..."
-}
-
-# Function to backup files
-backup_files() {
-    files=("/etc/x-ui/x-ui.db" "/var/spool/cron/crontabs/root" "/root/auto_vxlan_update.sh")
-    dirs=("/root/vxlan")
-    service_files="/usr/lib/systemd/system/vxlan-*.service"
-    zip_file="/root/backup_$(date +%Y-%m-%d_%H-%M).zip"
-
-    echo -e "${BLUE}Creating backup of configuration files${RESET}"
-    echo -e "${GREEN}Backing up VXLAN services, x-ui database, and cron jobs to $zip_file.${RESET}"
-    items=()
-    for f in "${files[@]}" "${dirs[@]}" $service_files; do [[ -e "$f" ]] && items+=("$f"); done
-    [[ ${#items[@]} -eq 0 ]] && { echo -e "${RED}No files or directories found to backup.${RESET}"; return 1; }
-
-    zip -r "$zip_file" "${items[@]}" >/dev/null && echo -e "${GREEN}Backup created: $zip_file${RESET}" || echo -e "${RED}Backup failed. Check permissions or disk space.${RESET}"
-    read -p "Press Enter to continue..."
-}
-
-# Function to transfer files
-transfer_files() {
-    files=("/etc/x-ui/x-ui.db" "/var/spool/cron/crontabs/root" "/root/auto_vxlan_update.sh")
-    dirs=("/root/vxlan")
-    service_files="/usr/lib/systemd/system/vxlan-*.service"
-
-    echo -e "${BLUE}Step 1: Enter SSH details for file transfer${RESET}"
-    echo -e "${GREEN}Enter the remote server's SSH details to transfer configuration files.${RESET}"
-    echo -e "${YELLOW}Note: SSH key-based authentication must be set up (use 'ssh-copy-id' if needed).${RESET}"
-    read -p "Remote User (default: root): " user
-    user=${user:-root}
-    read -p "Remote Host IP: " host
-    read -p "Remote Port (default: 22): " port
-    port=${port:-22}
-
-    echo -e "${BLUE}Step 2: Testing SSH connection${RESET}"
-    ssh -o StrictHostKeyChecking=no -p "$port" "$user@$host" exit 2>/dev/null || { echo -e "${RED}SSH connection failed. Ensure SSH keys are set up or check the host/port.${RESET}"; return 1; }
-    echo -e "${GREEN}SSH connection successful.${RESET}"
-
-    echo -e "${BLUE}Step 3: Transferring files${RESET}"
-    for f in "${files[@]}" "${dirs[@]}" $service_files; do
-        if [[ -e "$f" ]]; then
-            dest_dir=$(dirname "$f")
-            scp -P "$port" -r "$f" "$user@$host:$dest_dir/" && echo -e "${GREEN}Transferred $f to $dest_dir${RESET}" || echo -e "${RED}Failed to transfer $f. Check SSH permissions.${RESET}"
-        fi
-    done
-    backup_files
 }
 
 # Main menu
 while true; do
     clear
-    echo -e "${BLUE}=== VXLAN Tunnel Manager ===${RESET}"
-    echo -e "${GREEN}1. Create a new VXLAN tunnel${RESET}"
-    echo -e "${GREEN}2. Manage existing tunnels${RESET}"
-    echo -e "${GREEN}3. Start all tunnels${RESET}"
-    echo -e "${GREEN}4. Stop all tunnels${RESET}"
-    echo -e "${GREEN}5. Restart all tunnels${RESET}"
-    echo -e "${GREEN}6. Backup configuration files${RESET}"
-    echo -e "${GREEN}7. Transfer files to another server${RESET}"
-    echo -e "${RED}0. Exit${RESET}"
-    read -p "Choose an option: " choice
-
-    case $choice in
+    echo -e "${BLUE}=========================="
+    echo -e " VXLAN Tunnel Manager "
+    echo -e "==========================${RESET}"
+    echo -e "1. Create new VXLAN tunnel"
+    echo -e "2. Manage existing tunnels"
+    echo -e "0. Exit"
+    read -p "> " menu_choice
+    case "$menu_choice" in
         1) create_vxlan_tunnel ;;
         2) manage_tunnels ;;
-        3) manage_all_tunnels start ;;
-        4) manage_all_tunnels stop ;;
-        5) manage_all_tunnels restart ;;
-        6) backup_files ;;
-        7) transfer_files ;;
-        0) echo -e "${YELLOW}Exiting...${RESET}"; exit 0 ;;
-        *) echo -e "${RED}Invalid option. Choose a number between 0 and 7.${RESET}"; sleep 1 ;;
+        0) echo -e "${GREEN}Bye!${RESET}"; exit 0 ;;
+        *) echo -e "${RED}Invalid choice.${RESET}"; read -p "Press Enter to retry..." ;;
     esac
 done
