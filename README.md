@@ -36,30 +36,20 @@ With an interactive user-friendly interface and automatic prerequisite checks, m
 
 ---
 
-## 💡 Usage
+## How to Run?
+Run the following script on your server (Debian or Ubuntu):
 
-1. Place the script on your server and make it executable:
+```
+bash <(curl -Ls https://raw.githubusercontent.com/KanekiDevPro/Vxlan/main/main.sh)
+```
 
-    ```bash
-    bash <(curl -Ls https://raw.githubusercontent.com/KanekiDevPro/Vxlan/main/main.sh)
-    ```
+```
+bash <(curl -Ls https://raw.githubusercontent.com/KanekiDevPro/Vxlan/main/beta.sh)
+```
 
-2. Run the script:
-
-    ```bash
-    bash <(curl -Ls https://raw.githubusercontent.com/KanekiDevPro/Vxlan/main/beta.sh)
-    ```
-
-3. Choose your desired option from the main menu:
-
-    - Create new tunnel  
-    - Manage existing tunnels  
-    - Start, stop, or restart all tunnels  
-    - Backup and transfer files  
-
-4. When creating a new tunnel, enter the VNI, local and remote IPs, and tunnel IP or use defaults.
-
----
+```
+bash <(curl -Ls https://raw.githubusercontent.com/KanekiDevPro/Vxlan/main/beta2.sh)
+```
 
 ## 🛠️ Important Notes
 
