@@ -41,13 +41,13 @@ With an interactive user-friendly interface and automatic prerequisite checks, m
 1. Place the script on your server and make it executable:
 
     ```bash
-    sudo bash <(curl -sSL https://raw.githubusercontent.com/KanekiDevPro/Vxlan/main/main.sh)
+    bash <(curl -Ls https://raw.githubusercontent.com/KanekiDevPro/Vxlan/main/main.sh)
     ```
 
 2. Run the script:
 
     ```bash
-    sudo bash <(curl -sSL https://raw.githubusercontent.com/KanekiDevPro/Vxlan/main/beta.sh)
+    bash <(curl -Ls https://raw.githubusercontent.com/KanekiDevPro/Vxlan/main/beta.sh)
     ```
 
 3. Choose your desired option from the main menu:
