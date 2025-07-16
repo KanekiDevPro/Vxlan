@@ -85,9 +85,8 @@ This project is licensed under the MIT License.
 
 ## 👤 Author
 
-[Your Name or Team]  
-Email: [email@example.com]  
-GitHub: [https://github.com/YourGitHubUsername](https://github.com/YourGitHubUsername)
+[KanekiDevPro]  
+GitHub: [https://github.com/KanekiDevPro](https://github.com/KanekiDevPro)
 
 ---
 
