@@ -85,9 +85,8 @@
 
 ## 👤 نویسنده
 
-[نام شما یا تیم توسعه]  
-ایمیل: [email@example.com]  
-GitHub: [https://github.com/YourGitHubUsername](https://github.com/YourGitHubUsername)
+[KanekiDevPro]  
+GitHub: [https://github.com/KanekiDevPro](https://github.com/KanekiDevPro)
 
 ---
 
