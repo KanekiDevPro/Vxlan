@@ -1,7 +1,7 @@
 
 # VXLAN Tunnel Manager
 
-![VXLAN](https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/VXLAN.svg/320px-VXLAN.svg.png)
+<img width="1118" height="624" alt="image" src="https://github.com/user-attachments/assets/7e395ec5-563c-4a13-bee3-a790d7583b9c" />
 
 Easy and automated VXLAN tunnel management on Linux using systemd.
 
